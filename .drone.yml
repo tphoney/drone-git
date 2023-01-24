@@ -11,28 +11,12 @@ pool:
   use: ubuntu
 
 steps:
-  - name: build
+  - name: test
     image: golang:1.10
     commands:
       - cd posix
       - tar -xf fixtures.tar -C /
       - go test -v
-
-  - name: publish
-    image: plugins/docker:18
-    settings:
-      dockerfile: docker/Dockerfile.linux.amd64
-      repo: drone/git
-      auto_tag: "true"
-      auto_tag_suffix: linux-amd64
-      username:
-        from_secret: docker_username
-      password:
-        from_secret: docker_password
-    when:
-      event:
-        - push
-        - tag
 
 ---
 kind: pipeline
@@ -47,59 +31,44 @@ pool:
   use: ubuntu_arm64
 
 steps:
-  - name: build
+  - name: test
     image: golang:1.10
     commands:
       - cd posix
       - tar -xf fixtures.tar -C /
       - go test -v
 
-  - name: publish
-    image: plugins/docker:18
-    settings:
-      dockerfile: docker/Dockerfile.linux.arm64
-      repo: drone/git
-      auto_tag: "true"
-      auto_tag_suffix: linux-arm64
-      username:
-        from_secret: docker_username
-      password:
-        from_secret: docker_password
-    when:
-      event:
-        - push
-        - tag
+# ---
+# kind: pipeline
+# type: vm
+# name: windows-1809
 
----
-kind: pipeline
-type: vm
-name: windows-1809
+# platform:
+#   os: windows
+#   arch: amd64
 
-platform:
-  os: windows
-  arch: amd64
+# pool:
+#   use: windows
 
-pool:
-  use: windows
+# steps:
+#   - name: docker
+#     image: plugins/docker
+#     settings:
+#       dockerfile: docker/Dockerfile.windows.1809
+#       repo: tphoney/git
+#       username:
+#         from_secret: docker_username
+#       password:
+#         from_secret: docker_password
+#       auto_tag: true
+#       auto_tag_suffix: windows-1809-amd64
+#       daemon_off: true
+#       purge: false
 
-steps:
-  - name: docker
-    image: plugins/docker
-    settings:
-      dockerfile: docker/Dockerfile.windows.1809
-      repo: drone/git
-      username:
-        from_secret: docker_username
-      password:
-        from_secret: docker_password
-      auto_tag: true
-      auto_tag_suffix: windows-1809-amd64
-      daemon_off: true
-      purge: false
-
-trigger:
-  event:
-    - push
+# trigger:
+#   event:
+#     - push
+#     - tag
 
 ---
 kind: pipeline
@@ -118,7 +87,7 @@ steps:
     image: plugins/docker
     settings:
       dockerfile: docker/Dockerfile.windows.ltsc2022
-      repo: drone/git
+      repo: tphoney/git
       username:
         from_secret: docker_username
       password:
@@ -131,11 +100,12 @@ steps:
 trigger:
   event:
     - push
+    - tag
 
 ---
 kind: pipeline
 type: vm
-name: manifest
+name: publish
 
 platform:
   os: linux
@@ -145,6 +115,22 @@ pool:
   use: ubuntu
 
 steps:
+  - name: publish
+    image: thegeeklab/drone-docker-buildx
+    settings:
+      dockerfile: docker/Dockerfile.linux.multiarch
+      repo: tphoney/git
+      auto_tag: "true"
+      username:
+        from_secret: docker_username
+      password:
+        from_secret: docker_password
+      platforms:
+        - linux/amd64
+        - linux/arm64
+        - linux/arm/v7
+        - linux/s390x
+
   - name: manifest
     image: plugins/manifest
     settings:
@@ -164,5 +150,4 @@ trigger:
 depends_on:
   - linux-amd64
   - linux-arm64
-  - windows-1809
   - windows-ltsc2022
